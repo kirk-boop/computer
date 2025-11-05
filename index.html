@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interactive 3D Computer</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    import { GLTFLoader } from 'https://unpkg.com/three@0.152.2/examples/jsm/loaders/GLTFLoader.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.152.2/examples/jsm/controls/OrbitControls.js';
+
+```
+// Scene + Camera
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.5, 3);
+
+// Renderer
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Controls: rotate only, no zoom
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableZoom = false;
+controls.enablePan = false;
+controls.target.set(0, 1, 0);
+
+// Lighting
+const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambientLight);
+
+// Load 3D model
+const loader = new GLTFLoader();
+const modelUrl = 'Computer.glb'; // make sure Computer.glb is in the same folder as index.html
+let screenMesh;
+
+loader.load(modelUrl, (gltf) => {
+  scene.add(gltf.scene);
+  gltf.scene.traverse((child) => {
+    if (child.isMesh && child.name === 'ScreenPanel') {
+      screenMesh = child;
+    }
+  });
+});
+
+// Raycaster for clicking the screen
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let cameraLocked = false;
+
+function onClick(event) {
+  if (cameraLocked || !screenMesh) return;
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  raycaster.setFromCamera(mouse, camera);
+  const intersects = raycaster.intersectObject(screenMesh);
+
+  if (intersects.length > 0) {
+    const screenPos = new THREE.Vector3();
+    screenMesh.getWorldPosition(screenPos);
+
+    const targetPos = screenPos.clone().add(new THREE.Vector3(0, 0, 1.2));
+    const startPos = camera.position.clone();
+    let progress = 0;
+
+    function animateCamera() {
+      progress += 0.02;
+      camera.position.lerpVectors(startPos, targetPos, progress);
+      controls.target.lerpVectors(controls.target, screenPos, progress);
+      if (progress < 1) {
+        requestAnimationFrame(animateCamera);
+      } else {
+        cameraLocked = true;
+        controls.enabled = false;
+      }
+    }
+    animateCamera();
+  }
+}
+
+window.addEventListener('click', onClick, false);
+
+// Anim
+```
